@@ -55,7 +55,7 @@
     border-color: #004080;
     background: #b3d1ff;
   }
-  #submit-btn {
+  #submit-btn, #next-btn, #restart-btn {
     background-color: #004080;
     color: white;
     border: none;
@@ -67,7 +67,7 @@
     margin-top: 15px;
     transition: background-color 0.3s;
   }
-  #submit-btn:disabled {
+  #submit-btn:disabled, #next-btn:disabled {
     background-color: #7a9cc6;
     cursor: not-allowed;
   }
@@ -77,17 +77,10 @@
     font-weight: 600;
     color: #004080;
     text-align: center;
+    min-height: 1.4em;
   }
   #restart-btn {
-    margin-top: 15px;
     background-color: #007a00;
-    color: white;
-    border: none;
-    padding: 10px 0;
-    width: 100%;
-    font-size: 1em;
-    border-radius: 6px;
-    cursor: pointer;
     display: none;
   }
   #progress-bar {
@@ -115,6 +108,7 @@
   <div id="question-text"></div>
   <div id="options" role="list"></div>
   <button id="submit-btn" disabled>Submit Answer</button>
+  <button id="next-btn" style="display:none;" disabled>Next Question</button>
   <div id="result" aria-live="polite"></div>
   <button id="restart-btn">Restart Quiz</button>
 </div>
@@ -178,6 +172,7 @@
     const questionTextEl = document.getElementById('question-text');
     const optionsEl = document.getElementById('options');
     const submitBtn = document.getElementById('submit-btn');
+    const nextBtn = document.getElementById('next-btn');
     const resultEl = document.getElementById('result');
     const restartBtn = document.getElementById('restart-btn');
     const progressEl = document.getElementById('progress');
@@ -185,7 +180,7 @@
     let currentQuestionIndex = 0;
     let selectedOptionIndex = null;
     let score = 0;
-    let quizEnded = false;
+    let answered = false;
 
     function loadQuestion() {
       const current = quizData[currentQuestionIndex];
@@ -194,8 +189,12 @@
       optionsEl.innerHTML = '';
       selectedOptionIndex = null;
       submitBtn.disabled = true;
+      submitBtn.style.display = 'inline-block';
+      nextBtn.style.display = 'none';
+      nextBtn.disabled = true;
       resultEl.textContent = '';
       restartBtn.style.display = 'none';
+      answered = false;
 
       current.options.forEach((option, i) => {
         const optionDiv = document.createElement('div');
@@ -218,7 +217,7 @@
     }
 
     function selectOption(index) {
-      if (quizEnded) return;
+      if (answered) return;
       selectedOptionIndex = index;
       Array.from(optionsEl.children).forEach((opt, i) => {
         if(i === index) {
@@ -235,6 +234,11 @@
     function submitAnswer() {
       if(selectedOptionIndex === null) return;
       const current = quizData[currentQuestionIndex];
+      answered = true;
+      submitBtn.style.display = 'none';
+      nextBtn.style.display = 'inline-block';
+      nextBtn.disabled = false;
+
       if(selectedOptionIndex === current.answer) {
         score++;
         resultEl.textContent = "Correct! 🎉";
@@ -243,9 +247,6 @@
         resultEl.textContent = `Wrong! The correct answer is "${current.options[current.answer]}".`;
         resultEl.style.color = "#b00020";
       }
-      quizEnded = true;
-      submitBtn.disabled = true;
-      restartBtn.style.display = 'inline-block';
 
       // Highlight correct and wrong answers
       Array.from(optionsEl.children).forEach((opt, i) => {
@@ -255,23 +256,26 @@
           opt.style.borderColor = '#28a745';
           opt.style.color = '#155724';
           opt.classList.remove('selected');
+          opt.setAttribute('aria-pressed', 'false');
         } else if(i === selectedOptionIndex) {
           opt.style.backgroundColor = '#f8d7da';
           opt.style.borderColor = '#dc3545';
           opt.style.color = '#721c24';
           opt.classList.remove('selected');
+          opt.setAttribute('aria-pressed', 'false');
         } else {
           opt.style.backgroundColor = '#e6f0ff';
           opt.style.borderColor = 'transparent';
           opt.style.color = '#000';
+          opt.classList.remove('selected');
+          opt.setAttribute('aria-pressed', 'false');
         }
       });
     }
 
-    function restartQuiz() {
+    function nextQuestion() {
       currentQuestionIndex++;
       if(currentQuestionIndex < quizData.length) {
-        quizEnded = false;
         loadQuestion();
       } else {
         showFinalScore();
@@ -282,41 +286,45 @@
       questionNumberEl.textContent = '';
       questionTextEl.textContent = 'Quiz Completed!';
       optionsEl.innerHTML = '';
-      resultEl.textContent = `Your score is ${score} out of ${quizData.length}.`;
+      resultEl.textContent = `Your total score is ${score} out of ${quizData.length}.`;
       resultEl.style.color = '#004080';
       submitBtn.style.display = 'none';
-      restartBtn.textContent = 'Restart Quiz';
+      nextBtn.style.display = 'none';
       restartBtn.style.display = 'inline-block';
       progressEl.style.width = '100%';
     }
 
-    submitBtn.addEventListener('click', () => {
-      if(!quizEnded) {
-        submitAnswer();
-      }
-    });
-
-    restartBtn.addEventListener('click', () => {
-      if(quizEnded && currentQuestionIndex < quizData.length) {
-        restartBtn.style.display = 'none';
-        submitBtn.disabled = true;
-        submitBtn.style.display = 'inline-block';
-        loadQuestion();
-      } else {
-        // Restart entire quiz
-        currentQuestionIndex = 0;
-        score = 0;
-        quizEnded = false;
-        submitBtn.style.display = 'inline-block';
-        restartBtn.textContent = 'Next Question';
-        loadQuestion();
-      }
-    });
+    function restartQuiz() {
+      currentQuestionIndex = 0;
+      score = 0;
+      answered = false;
+      submitBtn.style.display = 'inline-block';
+      submitBtn.disabled = true;
+      nextBtn.style.display = 'none';
+      restartBtn.style.display = 'none';
+      loadQuestion();
+    }
 
     function updateProgress() {
       const progressPercent = (currentQuestionIndex / quizData.length) * 100;
       progressEl.style.width = progressPercent + '%';
     }
+
+    submitBtn.addEventListener('click', () => {
+      if(!answered) {
+        submitAnswer();
+      }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if(answered) {
+        nextQuestion();
+      }
+    });
+
+    restartBtn.addEventListener('click', () => {
+      restartQuiz();
+    });
 
     // Initialize
     loadQuestion();
